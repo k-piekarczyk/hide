@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"path"
 )
 
 func main() {
@@ -19,13 +20,13 @@ func main() {
 			flag.PrintDefaults()
 			os.Exit(1)
 		}
-		Hide(*imagePtr, *payloadPtr, *outputPtr)
+		Hide(path.Clean(*imagePtr), path.Clean(*payloadPtr), path.Clean(*outputPtr))
 	case "decode":
 		if *imagePtr == "" || *outputPtr == "" {
 			flag.PrintDefaults()
 			os.Exit(1)
 		}
-		Uncover(*imagePtr, *outputPtr)
+		Uncover(path.Clean(*imagePtr), path.Clean(*outputPtr))
 	default:
 		flag.PrintDefaults()
 		os.Exit(1)
