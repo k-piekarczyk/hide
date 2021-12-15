@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
+	"math/rand"
+	"os"
 )
 
 func decodePayload(img *image.Image) []uint8 {
@@ -17,57 +19,74 @@ func decodePayload(img *image.Image) []uint8 {
 	lengthBits := make([]uint8, 64)
 	var payloadBits []uint8
 
-	fmt.Println(width, height)
+	pixelMap := map[Coord]bool{}
+	rg := rand.New(rand.NewSource(int64(width * height)))
 
-	for x := 0; x < width; x++ {
-		for y := 0; y < height; y++ {
-			originalColor := (*img).At(x, y)
+	for true {
+		x := rg.Intn(width)
+		y := rg.Intn(height)
 
-			r, g, b, _ := originalColor.RGBA()
+		xy := Coord{x: x, y: y}
 
-			rgbArray := [3]uint8{uint8(r / 0x101), uint8(g / 0x101), uint8(b / 0x101)} // De-premultiplication (Go automaticaly alpha premultiplifies)
+		for pixelMap[xy] {
+			x = rg.Intn(width)
+			y = rg.Intn(height)
 
-			for i := 0; i < 3; i++ {
-				if bitCounter < 64 {
-					cc := rgbArray[i]
-					lengthBits[bitCounter] = cc & 0b00000001
-					bitCounter++
+			xy = Coord{x: x, y: y}
+		}
 
-					if bitCounter == 64 {
-						lengthBytes := GlueBits(&lengthBits)
+		pixelMap[xy] = true
 
-						lengthBuffer := bytes.NewBuffer(lengthBytes)
-						payloadLength, err := binary.ReadUvarint(lengthBuffer)
+		originalColor := (*img).At(x, y)
+		r, g, b, _ := originalColor.RGBA()
+		rgbArray := [3]uint8{uint8(r / 0x101), uint8(g / 0x101), uint8(b / 0x101)} // De-premultiplication (Go automaticaly alpha premultiplifies)
 
-						fmt.Println("Encoded payload length:", payloadLength, "byte(s)")
+		for i := 0; i < 3; i++ {
+			if bitCounter < 64 {
+				cc := rgbArray[i]
+				lengthBits[bitCounter] = cc & 0b00000001
+				bitCounter++
 
-						PanicOnError(err)
+				if bitCounter == 64 {
+					lengthBytes := GlueBits(&lengthBits)
 
-						payloadBits = make([]uint8, payloadLength*8)
-					}
-				} else if (bitCounter - 64) < len(payloadBits) {
-					cc := rgbArray[i]
-					payloadBits[bitCounter-64] = cc & 0b00000001
-					bitCounter++
-				} else {
-					return payloadBits
+					lengthBuffer := bytes.NewBuffer(lengthBytes)
+					payloadLength, err := binary.ReadUvarint(lengthBuffer)
+
+					fmt.Println("Decoded payload length:", payloadLength, "byte(s)")
+
+					PanicOnError(err)
+
+					payloadBits = make([]uint8, payloadLength*8)
+
+					rg = rand.New(rand.NewSource(int64(width * height * int(payloadLength))))
 				}
+			} else if (bitCounter - 64) < len(payloadBits) {
+				cc := rgbArray[i]
+				payloadBits[bitCounter-64] = cc & 0b00000001
+				bitCounter++
+			} else {
+				return payloadBits
 			}
 		}
 	}
+
 	panic("We shouldn't have gotten this far")
 }
 
-func Uncover() {
-	var pathToImage = "./result.png"
-
+func Uncover(input string, output string) {
 	fmt.Println("Opening a file ")
 
-	img := GetImageFromFilePath(pathToImage)
+	img := GetImageFromFilePath(input)
 
 	payloadBits := decodePayload(&img)
 
 	payloadBytes := GlueBits(&payloadBits)
 
-	fmt.Println(payloadBytes)
+	f, err := os.Create(output)
+	PanicOnError(err)
+	defer f.Close()
+
+	_, err = f.Write(payloadBytes)
+	PanicOnError(err)
 }

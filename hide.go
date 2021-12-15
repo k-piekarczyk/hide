@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	"image/png"
 	_ "image/png"
+	"math/rand"
 	"os"
 )
 
@@ -19,14 +20,10 @@ func encodePayload(original *image.Image, payload *[]byte) *image.RGBA {
 	lengthBits := SplitBufferIntoChunks(&lengthBuffer)
 
 	fmt.Println("Payload length", length, "byte(s)")
-	fmt.Println(*payload)
 	payloadBits := SplitBufferIntoChunks(payload)
-	fmt.Println(payloadBits)
 
 	preparedPayload := append(lengthBits, payloadBits...)
 	nBits := len(preparedPayload)
-
-	fmt.Println(preparedPayload)
 
 	encoded := image.NewRGBA((*original).Bounds())
 
@@ -35,28 +32,55 @@ func encodePayload(original *image.Image, payload *[]byte) *image.RGBA {
 	width := endPoint.X
 	height := endPoint.Y
 
+	bitCapacity := width * height * 3
+
+	if bitCapacity < nBits {
+		panic(fmt.Errorf("provided image can store up to %d bytes, but the data to be hidden requires at least %d bytes", bitCapacity/8, nBits/8))
+	}
+
+	pixelMap := map[Coord]bool{}
+	rg := rand.New(rand.NewSource(int64(width * height)))
+
 	bitCounter := 0
+	for bitCounter < nBits {
+		x := rg.Intn(width)
+		y := rg.Intn(height)
+
+		xy := Coord{x: x, y: y}
+
+		for pixelMap[xy] {
+			x = rg.Intn(width)
+			y = rg.Intn(height)
+
+			xy = Coord{x: x, y: y}
+		}
+
+		pixelMap[xy] = true
+
+		originalColor := (*original).At(x, y)
+		oR, oG, oB, _ := originalColor.RGBA()
+		rgbArray := [3]uint8{uint8(oR / 0x101), uint8(oG / 0x101), uint8(oB / 0x101)} // De-premultiplication (Go automaticaly alpha premultiplifies)
+
+		for i := 0; i < 3; i++ {
+			if bitCounter < nBits {
+				cc := rgbArray[i]
+				rgbArray[i] = (cc & 0b11111110) | preparedPayload[bitCounter]
+				bitCounter++
+
+				if bitCounter == 64 {
+					rg = rand.New(rand.NewSource(int64(width * height * len(*payload))))
+				}
+			}
+		}
+		encoded.Set(x, y, color.RGBA{R: rgbArray[0], G: rgbArray[1], B: rgbArray[2], A: 0xff})
+	}
+
 	for x := 0; x < width; x++ {
 		for y := 0; y < height; y++ {
-			originalColor := (*original).At(x, y)
+			xy := Coord{x: x, y: y}
 
-			if bitCounter < nBits {
-				oR, oG, oB, _ := originalColor.RGBA()
-
-				rgbArray := [3]uint8{uint8(oR / 0x101), uint8(oG / 0x101), uint8(oB / 0x101)} // De-premultiplication (Go automaticaly alpha premultiplifies)
-
-				for i := 0; i < 3; i++ {
-					if bitCounter < nBits {
-						cc := rgbArray[i]
-						rgbArray[i] = (cc & 0b11111110) | preparedPayload[bitCounter]
-						fmt.Print(rgbArray[i]&0b1, " ")
-						bitCounter++
-					}
-				}
-
-				encoded.Set(x, y, color.RGBA{R: rgbArray[0], G: rgbArray[1], B: rgbArray[2], A: 0xff})
-			} else {
-				encoded.Set(x, y, originalColor)
+			if !pixelMap[xy] {
+				encoded.Set(x, y, (*original).At(x, y))
 			}
 		}
 	}
@@ -64,17 +88,14 @@ func encodePayload(original *image.Image, payload *[]byte) *image.RGBA {
 	return encoded
 }
 
-func Hide() {
-	var pathToHide = "./resources/toHide.txt"
-	var pathToImage = "./resources/input.png"
-
+func Hide(image string, payload string, output string) {
 	fmt.Println("Opening a file ")
 
-	img := GetImageFromFilePath(pathToImage)
+	img := GetImageFromFilePath(image)
 
-	messageBuffer := GetBytesFromFilePath(pathToHide)
+	messageBuffer := GetBytesFromFilePath(payload)
 
-	f, err := os.Create("result.png")
+	f, err := os.Create(output + ".png")
 	PanicOnError(err)
 	defer f.Close()
 
@@ -84,6 +105,4 @@ func Hide() {
 
 	err = encoder.Encode(f, encoded)
 	PanicOnError(err)
-
-	fmt.Println("Message hidden")
 }

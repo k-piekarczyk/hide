@@ -80,3 +80,8 @@ func GetBytesFromFilePath(filePath string) []byte {
 
 	return buffer
 }
+
+type Coord struct {
+	x int
+	y int
+}
