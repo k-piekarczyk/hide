@@ -19,7 +19,7 @@ func encodePayload(original *image.Image, payload *[]byte) *image.RGBA {
 	binary.PutUvarint(lengthBuffer, length)
 	lengthBits := SplitBufferIntoChunks(&lengthBuffer)
 
-	fmt.Println("Payload length", length, "byte(s)")
+	fmt.Println("Encoding payload:", length, "byte(s)")
 	payloadBits := SplitBufferIntoChunks(payload)
 
 	preparedPayload := append(lengthBits, payloadBits...)
@@ -89,8 +89,6 @@ func encodePayload(original *image.Image, payload *[]byte) *image.RGBA {
 }
 
 func Hide(image string, payload string, output string) {
-	fmt.Println("Opening a file ")
-
 	img := GetImageFromFilePath(image)
 
 	messageBuffer := GetBytesFromFilePath(payload)

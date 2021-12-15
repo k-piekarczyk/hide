@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"os"
 )
@@ -55,10 +54,8 @@ func GetImageFromFilePath(filePath string) image.Image {
 	PanicOnError(err)
 	defer f.Close()
 
-	img, imgType, err := image.Decode(f)
+	img, _, err := image.Decode(f)
 	PanicOnError(err)
-
-	fmt.Println(imgType)
 
 	return img
 }

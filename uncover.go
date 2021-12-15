@@ -53,7 +53,7 @@ func decodePayload(img *image.Image) []uint8 {
 					lengthBuffer := bytes.NewBuffer(lengthBytes)
 					payloadLength, err := binary.ReadUvarint(lengthBuffer)
 
-					fmt.Println("Decoded payload length:", payloadLength, "byte(s)")
+					fmt.Println("Decoding payload:", payloadLength, "byte(s)")
 
 					PanicOnError(err)
 
@@ -74,10 +74,8 @@ func decodePayload(img *image.Image) []uint8 {
 	panic("We shouldn't have gotten this far")
 }
 
-func Uncover(input string, output string) {
-	fmt.Println("Opening a file ")
-
-	img := GetImageFromFilePath(input)
+func Uncover(image string, output string) {
+	img := GetImageFromFilePath(image)
 
 	payloadBits := decodePayload(&img)
 
